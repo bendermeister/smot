@@ -1,13 +1,19 @@
 import backend/log
+import backend/migration
 import backend/sql
 import gleam/dynamic/decode
 import gleam/erlang/process
 import gleam/json
+import gleam/option
 import gleam/otp/actor
 import gleam/otp/supervision
 import gleam/result
 import middle/author
 import middle/video
+
+pub opaque type Builder {
+  Builder(name: option.Option(process.Name(Msg)), path: String)
+}
 
 pub type Msg {
   Stop
@@ -16,17 +22,41 @@ pub type Msg {
   VideoFetch(reply_to: process.Subject(Result(video.Video, Nil)), id: video.Id)
 }
 
-pub fn start(name: process.Name(Msg), db: String) {
+pub fn new() {
+  Builder(path: ":memory:", name: option.None)
+}
+
+pub fn path(builder: Builder, path: String) {
+  Builder(..builder, path:)
+}
+
+pub fn named(builder: Builder, name) {
+  Builder(..builder, name: option.Some(name))
+}
+
+pub fn start(builder: Builder) {
   let db =
-    sql.open(db)
+    sql.open(builder.path)
     |> result.replace_error(actor.InitFailed(
-      "could not open database file: " <> db,
+      "could not open database file: " <> builder.path,
     ))
   use db <- result.try(db)
 
-  actor.new(db)
-  |> actor.named(name)
-  |> actor.on_message(on_message)
+  let result =
+    migration.migrate(db)
+    |> result.replace_error(actor.InitFailed("could not migrate database"))
+  use _ <- result.try(result)
+
+  let actor =
+    actor.new(db)
+    |> actor.on_message(on_message)
+
+  let actor = case builder.name {
+    option.Some(name) -> actor |> actor.named(name)
+    option.None -> actor
+  }
+
+  actor
   |> actor.start()
 }
 
@@ -59,7 +89,12 @@ pub fn on_message(db, msg: Msg) {
 }
 
 pub fn supervised(name, db) {
-  fn() { start(name, db) }
+  let builder =
+    new()
+    |> path(db)
+    |> named(name)
+
+  fn() { start(builder) }
   |> supervision.worker()
 }
 
