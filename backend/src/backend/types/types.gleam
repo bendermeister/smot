@@ -20,7 +20,7 @@ pub type Video =
 pub type DatabaseMsg {
   DatabaseStop
   DatabaseVideoFetchAll(reply_to: Subject(Result(List(Video), Nil)))
-  DatabaseVideoFetch(reply_to: Subject(Result(Video, Nil)), id: VideoId)
+  DatabaseVideoFetch(reply_to: Subject(Result(Video, Nil)), id: Id(Video))
   DatabaseInsert(reply_to: Subject(Result(Nil, Nil)), video: Video)
 }
 

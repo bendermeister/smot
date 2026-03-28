@@ -7,10 +7,7 @@ import gleam/result
 import gleam/string
 import gleam/uri
 import middle/author.{type Author}
-
-pub type Id {
-  Id(inner: String)
-}
+import middle/id.{type Id}
 
 pub type TimeStamp {
   TimeStamp(inner: Int)
@@ -22,17 +19,13 @@ pub fn get_timestamp() {
 
 pub type Video {
   Video(
-    id: Id,
+    id: Id(Video),
     author: Author,
     title: String,
     url: String,
     thumbnail: String,
     timestamp: TimeStamp,
   )
-}
-
-pub fn id_from_string(id: String) {
-  Id(id)
 }
 
 pub fn timestamp_decoder() {
