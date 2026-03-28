@@ -6,16 +6,16 @@ import gleam/option
 import gleam/result
 import sqlight
 
-pub fn close(conn) {
+pub fn close(ctx, conn) {
   sqlight.close(conn)
-  |> log.on_errorf(error_format)
+  |> log.error_on_errorf(ctx, error_format)
   |> result.replace_error(Nil)
 }
 
-pub fn open(path: String) {
+pub fn open(ctx, path: String) {
   sqlight.open(path)
-  |> log.on_errorf(error_format)
-  |> log.on_error("sql: could not open database")
+  |> log.error_on_errorf(ctx, error_format)
+  |> log.error_on_error(ctx, "sql: could not open database")
   |> result.replace_error(Nil)
 }
 
@@ -72,6 +72,7 @@ fn error_format(error: sqlight.Error) {
 
 pub fn fetch(
   query: Query(a),
+  ctx,
   connection: sqlight.Connection,
 ) -> Result(List(a), Nil) {
   sqlight.query(
@@ -80,30 +81,30 @@ pub fn fetch(
     query.parameter |> list.reverse,
     query.returning,
   )
-  |> log.on_errorf(error_format)
+  |> log.error_on_errorf(ctx, error_format)
   |> result.replace_error(Nil)
 }
 
-pub fn fetch_one(query: Query(a), connection: sqlight.Connection) {
-  case fetch(query, connection) {
+pub fn fetch_one(query: Query(a), ctx, connection: sqlight.Connection) {
+  case fetch(query, ctx, connection) {
     Ok([]) -> {
-      log.error("sql: expected one got none")
+      log.error(ctx, "sql: expected one got none")
       Error(Nil)
     }
     Ok([value]) -> Ok(value)
     Ok(_) -> {
-      log.error("sql: expected one got many")
+      log.error(ctx, "sql: expected one got many")
       Error(Nil)
     }
     Error(Nil) -> Error(Nil)
   }
 }
 
-pub fn execute(query: Query(a), connection: sqlight.Connection) {
-  case fetch(query, connection) {
+pub fn execute(query: Query(a), ctx, connection: sqlight.Connection) {
+  case fetch(query, ctx, connection) {
     Ok([]) -> Ok(Nil)
     Ok(_) -> {
-      log.error("sql: expected none got at least one")
+      log.error(ctx, "sql: expected none got at least one")
       Error(Nil)
     }
     Error(Nil) -> Error(Nil)

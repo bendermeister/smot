@@ -1,5 +1,6 @@
 import backend/context
-import backend/db_actor
+import backend/db
+import backend/log
 import backend/server_config
 import backend/web
 import dot_env
@@ -12,16 +13,24 @@ pub fn main() -> Nil {
   |> dot_env.set_path(".env")
   |> dot_env.load()
 
+  // actor names 
+  let db_name = process.new_name("database")
+
   // read server config from environment
   let server_config = server_config.read_from_environment()
 
-  // create db_actor
-  let db_name = process.new_name("db")
-  let db_actor = db_actor.supervised(db_name, server_config.db_path)
+  let db_subject = process.named_subject(db_name)
 
-  // create initial context
-  let db = process.named_subject(db_name)
-  let ctx = context.Context(db:)
+  let logger = log.default_logger
+
+  let db_actor =
+    db.new()
+    |> db.named(db_name)
+    |> db.logger(logger)
+    |> db.path(server_config.db_path)
+    |> db.supervised()
+
+  let ctx = context.new("http", logger, db_subject)
 
   // create web actor
   let web_actor = web.supervised(ctx, server_config)

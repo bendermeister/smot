@@ -6,11 +6,14 @@ import gleam/list
 import gleam/order
 import gleam/pair
 import gleam/result
+import gleam/uri
 import lustre
 import lustre/attribute.{class} as attr
 import lustre/effect
 import lustre/element/html.{button, div, h1, input, span, text}
 import lustre/event.{on_change, on_click, on_input}
+import middle/id
+import middle/timestamp
 import middle/video
 import rsvp
 
@@ -37,11 +40,11 @@ fn update(model: Model, msg: Msg) {
   case msg {
     UserInputQuery(query:) -> Model(..model, query:) |> pair.new(effect.none())
     UserPressedAdd -> {
-      video.id_from_url(model.query)
-      |> echo
+      model.query
+      |> uri.parse()
+      |> result.try(video.id_from_uri)
       |> result.map(fn(id) {
-        // TODO: we need video.id_to_string 
-        let url = "/api/video/fetch/" <> id.inner
+        let url = "/api/video/fetch/" <> id.to_string(id)
 
         let handler =
           rsvp.expect_json(video.json_decoder(), fn(result) {
@@ -80,7 +83,7 @@ fn update(model: Model, msg: Msg) {
       let videos =
         videos
         |> list.sort(fn(a, b) {
-          int.compare(a.timestamp.inner, b.timestamp.inner)
+          timestamp.compare(a.timestamp, b.timestamp)
           |> order.negate()
         })
 
