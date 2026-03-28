@@ -91,9 +91,10 @@ fn api_video_fetch(ctx, id) {
       use author_name <- decode.field("author_name", decode.string)
       use author_url <- decode.field("author_url", decode.string)
       use thumbnail <- decode.field("thumbnail_url", decode.string)
+      let timestamp = video.get_timestamp()
 
       let author = author.Author(name: author_name, url: author_url)
-      video.Video(id:, author:, title:, url: video_url, thumbnail:)
+      video.Video(id:, author:, title:, url: video_url, thumbnail:, timestamp:)
       |> decode.success
     }
 

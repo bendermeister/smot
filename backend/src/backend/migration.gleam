@@ -40,6 +40,7 @@ const migrations = [
   migration_0000,
   migration_0001,
   migration_0002,
+  migration_0003,
 ]
 
 fn has_migration_table(conn: sqlight.Connection) {
@@ -90,6 +91,14 @@ fn migration_0002(conn) {
 
       PRIMARY KEY(id)
   );
+  "
+  |> sql.query()
+  |> sql.execute(conn)
+}
+
+fn migration_0003(conn) {
+  "
+  ALTER TABLE video ADD COLUMN timestamp INT NOT NULL;
   "
   |> sql.query()
   |> sql.execute(conn)

@@ -1,7 +1,9 @@
 import component
 import gleam/dynamic/decode
+import gleam/int
 import gleam/io
 import gleam/list
+import gleam/order
 import gleam/pair
 import gleam/result
 import lustre
@@ -74,9 +76,18 @@ fn update(model: Model, msg: Msg) {
       #(model, effect)
     }
     NoOp -> #(model, effect.none())
-    ClientGotVideos(videos:) ->
-      Model(..model, videos:)
-      |> pair.new(effect.none())
+    ClientGotVideos(videos:) -> {
+      let videos =
+        videos
+        |> list.sort(fn(a, b) {
+          int.compare(a.timestamp.inner, b.timestamp.inner)
+          |> order.negate()
+        })
+
+      let model = Model(..model, videos:)
+
+      #(model, effect.none())
+    }
   }
 }
 
