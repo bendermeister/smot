@@ -66,7 +66,15 @@ pub fn supervised(name, db) {
 fn video_fetch_all(db) {
   log.info("db: fetching all videos")
   "
-  SELECT id, author_name, title, thumbnail_url, author_url FROM video;
+  SELECT 
+    id, 
+    author_name, 
+    title, 
+    thumbnail_url, 
+    author_url, 
+    timestamp 
+  FROM video 
+  ORDER BY timestamp ASC;
   "
   |> sql.query()
   |> sql.returning({
@@ -75,10 +83,11 @@ fn video_fetch_all(db) {
     use title <- decode.field(2, decode.string)
     use thumbnail <- decode.field(3, decode.string)
     use author_url <- decode.field(4, decode.string)
+    use timestamp <- decode.field(5, video.timestamp_decoder())
     let url = video.id_to_url(id)
 
     let author = author.Author(name: author_name, url: author_url)
-    video.Video(id:, author:, title:, url:, thumbnail:)
+    video.Video(id:, author:, title:, url:, thumbnail:, timestamp:)
     |> decode.success
   })
   |> sql.fetch(db)
@@ -92,9 +101,10 @@ fn video_insert(db, video: video.Video) {
     author_name,
     author_url,
     title,
-    thumbnail_url
+    thumbnail_url,
+    timestamp
   ) VALUES (
-    ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?
   );
   "
   |> sql.query()
@@ -103,13 +113,15 @@ fn video_insert(db, video: video.Video) {
   |> sql.parameter(video.author.url |> sql.text)
   |> sql.parameter(video.title |> sql.text)
   |> sql.parameter(video.thumbnail |> sql.text)
+  |> sql.parameter(video.timestamp.inner |> sql.int)
   |> sql.execute(db)
 }
 
 fn video_fetch(db, id: video.Id) {
   log.info("db: fetching video: " <> id.inner)
   "
-  SELECT author_url, author_name, title, thumbnail_url FROM video WHERE id = ? LIMIT 1;
+  SELECT author_url, author_name, title, thumbnail_url, timestamp FROM video 
+  WHERE id = ? LIMIT 1;
   "
   |> sql.query()
   |> sql.parameter(id.inner |> sql.text)
@@ -118,10 +130,11 @@ fn video_fetch(db, id: video.Id) {
     use author_name <- decode.field(1, decode.string)
     use title <- decode.field(2, decode.string)
     use thumbnail <- decode.field(3, decode.string)
+    use timestamp <- decode.field(4, video.timestamp_decoder())
 
     let url = video.id_to_url(id)
     let author = author.Author(name: author_name, url: author_url)
-    video.Video(id:, author:, title:, url:, thumbnail:)
+    video.Video(id:, author:, title:, url:, thumbnail:, timestamp:)
     |> decode.success()
   })
   |> sql.fetch_one(db)

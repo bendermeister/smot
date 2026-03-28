@@ -10,6 +10,7 @@ pub fn to_from_json_test() {
       url: "https://videourl.com",
       thumbnail: "https://thumbnail.img",
       id: video.Id("someid"),
+      timestamp: video.get_timestamp(),
     )
 
   let assert Ok(out) =

@@ -1,3 +1,4 @@
+import birl
 import gleam/dynamic/decode
 import gleam/json
 import gleam/list
@@ -11,12 +12,31 @@ pub type Id {
   Id(inner: String)
 }
 
+pub type TimeStamp {
+  TimeStamp(inner: Int)
+}
+
+pub fn get_timestamp() {
+  birl.now() |> birl.to_unix |> TimeStamp
+}
+
 pub type Video {
-  Video(id: Id, author: Author, title: String, url: String, thumbnail: String)
+  Video(
+    id: Id,
+    author: Author,
+    title: String,
+    url: String,
+    thumbnail: String,
+    timestamp: TimeStamp,
+  )
 }
 
 pub fn id_from_string(id: String) {
   Id(id)
+}
+
+pub fn timestamp_decoder() {
+  decode.int |> decode.map(TimeStamp)
 }
 
 pub fn id_to_url(id: Id) {
@@ -62,6 +82,7 @@ pub fn to_json(video: Video) {
     #("url", video.url |> json.string),
     #("thumbnail", video.thumbnail |> json.string),
     #("id", video.id |> id_to_json()),
+    #("timestamp", video.timestamp.inner |> json.int),
   ]
   |> json.object()
 }
@@ -71,7 +92,8 @@ pub fn json_decoder() {
   use title <- decode.field("title", decode.string)
   use url <- decode.field("url", decode.string)
   use thumbnail <- decode.field("thumbnail", decode.string)
+  use timestamp <- decode.field("timestamp", timestamp_decoder())
   use id <- decode.field("id", id_decoder())
-  Video(author:, title:, url:, thumbnail:, id:)
+  Video(author:, title:, url:, thumbnail:, id:, timestamp:)
   |> decode.success()
 }
