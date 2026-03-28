@@ -1,12 +1,10 @@
 import backend/context
 import backend/db_actor
-import backend/migration
 import backend/server_config
 import backend/web
 import dot_env
 import gleam/erlang/process
 import gleam/otp/static_supervisor
-import sqlight
 
 pub fn main() -> Nil {
   // setup dotenv
@@ -16,10 +14,6 @@ pub fn main() -> Nil {
 
   // read server config from environment
   let server_config = server_config.read_from_environment()
-
-  // run database migrations
-  let assert Ok(_) =
-    sqlight.with_connection(server_config.db_path, migration.migrate)
 
   // create db_actor
   let db_name = process.new_name("db")
