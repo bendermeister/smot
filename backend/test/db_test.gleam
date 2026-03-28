@@ -1,5 +1,6 @@
 import backend/context
 import backend/db
+import backend/log
 import backend/types.{DatabaseStop}
 import gleam/list
 import gleam/otp/actor
@@ -7,6 +8,22 @@ import middle/author
 import middle/id.{Id}
 import middle/timestamp
 import middle/video
+
+pub fn with_db_logger(handler) {
+  let logger = log.default_logger
+
+  let assert Ok(db) =
+    db.new()
+    |> db.path(":memory:")
+    |> db.logger(logger)
+    |> db.start()
+
+  let ctx = context.new("test", logger, db.data)
+
+  let _ = handler(ctx)
+
+  actor.send(db.data, DatabaseStop)
+}
 
 fn with_db(handler) {
   // let logger = log.default_logger
