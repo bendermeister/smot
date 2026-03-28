@@ -1,6 +1,7 @@
 import gleam/dynamic/decode
 import gleam/option
 import gleam/pair
+import gleam/uri
 import lustre
 import lustre/attribute.{class, href, src}
 import lustre/component
@@ -17,7 +18,7 @@ type Msg {
   GotVideo(video: video.Video)
 }
 
-fn update(model: Model, msg: Msg) {
+fn update(_: Model, msg: Msg) {
   case msg {
     GotVideo(video:) ->
       video
@@ -50,7 +51,7 @@ fn view_video(video: video.Video) {
           class(
             "w-[384px] h-[216px] overflow-hidden hover:cursor-pointer rounded-t",
           ),
-          href(video.url),
+          href(video.id_to_uri(video.id) |> uri.to_string),
         ],
         [
           img([src(video.thumbnail), class("w-full h-full object-cover")]),
