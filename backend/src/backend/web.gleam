@@ -6,6 +6,7 @@ import gleam/dynamic/decode
 import gleam/hackney
 import gleam/http/request
 import gleam/json
+import gleam/option.{None}
 import gleam/result
 import gleam/uri
 import middle/author
@@ -27,8 +28,20 @@ pub fn supervised(ctx: Context, server_config: server_config.ServerConfig) {
   |> mist.supervised()
 }
 
+fn serve_file(ctx: Context, name: String, content_type: String) {
+  wisp.ok()
+  |> wisp.set_body(wisp.File(ctx.static_content <> "/" <> name, 0, None))
+  |> wisp.set_header("content-type", content_type)
+  |> echo
+  |> Ok
+}
+
 pub fn on_request(ctx: Context, req: wisp.Request) {
   case wisp.path_segments(req) {
+    [] | ["index.html"] -> serve_file(ctx, "index.html", "text/html")
+    ["frontend.js"] ->
+      serve_file(ctx, "frontend.js", "text/javascript; charset=utf-8")
+    ["frontend.css"] -> serve_file(ctx, "frontend.css", "text/css")
     ["api", "video", "fetch-all"] -> api_video_fetch_all(ctx)
     ["api", "video", "fetch", url] -> api_video_fetch(ctx, url)
     ["api", "video", "insert"] -> api_video_insert(ctx, req)

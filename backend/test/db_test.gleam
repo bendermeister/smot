@@ -18,7 +18,7 @@ pub fn with_db_logger(handler) {
     |> db.logger(logger)
     |> db.start()
 
-  let ctx = context.new("test", logger, db.data)
+  let ctx = context.new("test", "", logger, db.data)
 
   let _ = handler(ctx)
 
@@ -35,7 +35,7 @@ fn with_db(handler) {
     |> db.logger(logger)
     |> db.start()
 
-  let ctx = context.new("test", logger, db.data)
+  let ctx = context.new("test", "", logger, db.data)
 
   let _ = handler(ctx)
 

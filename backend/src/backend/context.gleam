@@ -4,9 +4,9 @@ import middle/id
 import youid/uuid
 
 /// create new root context
-pub fn new(name, logger, database) {
+pub fn new(name, static_content, logger, database) {
   let id = name |> id.from_string()
-  Context(id:, parent: None, logger:, database:)
+  Context(id:, parent: None, logger:, database:, static_content:)
 }
 
 /// create new child context associated with given parent

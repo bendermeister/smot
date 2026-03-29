@@ -39,7 +39,7 @@ pub fn logger(builder: Builder, logger: Logger) {
 }
 
 pub fn start(builder: Builder) {
-  let ctx = context.new("database", builder.logger, process.new_subject())
+  let ctx = context.new("database", "", builder.logger, process.new_subject())
 
   let db =
     sql.open(ctx, builder.path)

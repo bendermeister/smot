@@ -47,5 +47,6 @@ pub type Context {
     parent: Option(Id(Context)),
     logger: Logger,
     database: Database,
+    static_content: String,
   )
 }
