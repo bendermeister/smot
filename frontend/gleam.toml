@@ -27,17 +27,16 @@ lustre_dev_tools = ">= 2.3.5 and < 3.0.0"
 
 [tools.lustre.bin]
 # use system install bins or download them
-bun = "system"
-tailwindcss = "system"
+# bun = "system"
+# tailwindcss = "system"
 # gleam/httpc download timeout option in seconds for bun/tailwind cli executable DLs (default: 60s)
-timeout = 120
+timeout = 300
 
 [tools.lustre.build]
 minify = true
 # Build the application into our server's `priv/static` directory so it can be
 # deployed together with the backend.
-# outdir = "../server/priv/static"
-# TODO: configure out dir
+outdir = "../backend/priv/static"
 
 [tools.lustre.dev]
 host = "localhost"
@@ -48,6 +47,7 @@ port = 1234
 proxy = { from = "/api", to = "http://localhost:8080/api" }
 
 [tools.lustre.html]
+title = "smot"
 # Include Bootstrap in our project for simple styling.
 # stylesheets = [{ href = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" }]
 # scripts = [{ src = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" }]

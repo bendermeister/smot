@@ -2,5 +2,6 @@
 *.ez
 /build
 erl_crash.dump
+/priv
 .env
 db.sqlite

@@ -6,12 +6,19 @@ import backend/web
 import dot_env
 import gleam/erlang/process
 import gleam/otp/static_supervisor
+import gleam/result
+import gleam/string
+import wisp
 
 pub fn main() -> Nil {
   // setup dotenv
   dot_env.new()
   |> dot_env.set_path(".env")
   |> dot_env.load()
+
+  let assert Ok(static_content) =
+    wisp.priv_directory("backend")
+    |> result.map(string.append(_, "/static"))
 
   // actor names 
   let db_name = process.new_name("database")
@@ -30,7 +37,7 @@ pub fn main() -> Nil {
     |> db.path(server_config.db_path)
     |> db.supervised()
 
-  let ctx = context.new("http", logger, db_subject)
+  let ctx = context.new("http", static_content, logger, db_subject)
 
   // create web actor
   let web_actor = web.supervised(ctx, server_config)
