@@ -19,6 +19,8 @@ pub type DatabaseMsg {
   DatabaseVideoFetchAll(reply_to: Subject(Result(List(Video), Nil)))
   DatabaseVideoFetch(reply_to: Subject(Result(Video, Nil)), id: Id(Video))
   DatabaseVideoInsert(reply_to: Subject(Result(Nil, Nil)), video: Video)
+  DatabaseVideoUpdate(reply_to: Subject(Result(Nil, Nil)), video: Video)
+  DatabaseVideoDelete(reply_to: Subject(Result(Nil, Nil)), id: Id(Video))
 }
 
 pub type Database =

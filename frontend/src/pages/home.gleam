@@ -1,10 +1,12 @@
 import api
+import gleam/int
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/pair
 import gleam/result
+import gleam/set
 import gleam/string
 import gleam/uri
 import icon
@@ -42,6 +44,52 @@ pub type Msg {
   NoOp
 }
 
+fn video_query(videos: List(Video), query: String) {
+  let #(tags, softs) =
+    query
+    |> string.replace(",", " ")
+    |> string.replace(".", " ")
+    |> string.replace(";", " ")
+    |> string.replace("\t", " ")
+    |> string.replace("\n", " ")
+    |> string.lowercase()
+    |> string.split(" ")
+    |> list.partition(fn(part) {
+      case part {
+        "#" <> _ -> True
+        _ -> False
+      }
+    })
+
+  let tags = set.from_list(tags)
+
+  videos
+  |> list.map(fn(video) {
+    let tags_matching =
+      video.tags
+      |> list.map(string.lowercase)
+      |> set.from_list()
+      |> set.intersection(tags)
+      |> set.size()
+
+    let video_title = video.title |> string.lowercase()
+
+    let title_matching =
+      softs
+      |> list.filter(string.contains(video_title, _))
+      |> list.length()
+
+    #(tags_matching, title_matching, video)
+  })
+  |> list.sort(fn(a, b) {
+    int.compare(a.0, b.0)
+    |> order.break_tie(int.compare(a.1, b.1))
+    |> order.break_tie(timestamp.compare(a.2.timestamp, b.2.timestamp))
+    |> order.negate()
+  })
+  |> list.map(fn(x) { x.2 })
+}
+
 pub fn init() {
   let fetch_video = api.video_fetch_all(ClientGotVideos, ClientGotError)
 
@@ -67,7 +115,10 @@ pub fn update(model: Model, msg: Msg) {
       #(model, effect.none())
     }
 
-    UserInputQuery(query:) -> #(Model(..model, query:), effect.none())
+    UserInputQuery(query:) -> {
+      let videos = video_query(model.videos, query)
+      #(Model(..model, videos:, query:), effect.none())
+    }
 
     UserClickedAdd ->
       model.query
@@ -144,6 +195,7 @@ pub fn update(model: Model, msg: Msg) {
           let tags =
             tags
             |> string.split(" ")
+            |> list.map(string.replace(_, ",", ""))
             |> list.flat_map(string.split(_, "\t"))
             |> list.flat_map(string.split(_, "\n"))
 

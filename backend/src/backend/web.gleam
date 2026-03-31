@@ -45,9 +45,54 @@ pub fn on_request(ctx: Context, req: wisp.Request) {
     ["api", "video", "fetch-all"] -> api_video_fetch_all(ctx)
     ["api", "video", "fetch", url] -> api_video_fetch(ctx, url)
     ["api", "video", "insert"] -> api_video_insert(ctx, req)
+    ["api", "video", "delete", id] -> api_video_delete(ctx, id)
+    ["api", "video", "update"] -> api_video_update(ctx, req)
     _ -> wisp.not_found() |> Ok
   }
   |> result.unwrap(wisp.internal_server_error())
+}
+
+fn api_video_update(ctx, req) {
+  log.info(ctx, "api video update")
+
+  let body =
+    req
+    |> wisp.read_body_bits()
+    |> log.error_on_error(ctx, "could not read request body")
+  use body <- result.try(body)
+
+  let video =
+    body
+    |> json.parse_bits(video.json_decoder())
+    |> log.error_on_error(ctx, "could not parse request body")
+    |> result.replace_error(Nil)
+  use video <- result.try(video)
+
+  echo video
+
+  let result =
+    db.video_update(ctx, video)
+    |> log.error_on_error(ctx, "could not udpate video in database")
+  use _ <- result.try(result)
+
+  log.info(ctx, "successfully updated video in database")
+
+  wisp.ok()
+  |> Ok
+}
+
+fn api_video_delete(ctx, id) {
+  log.info(ctx, "api video delete")
+  let id = id.from_string(id)
+  log.info(ctx, "with id: " <> id.to_string(id))
+
+  let result =
+    db.video_delete(ctx, id)
+    |> log.error_on_error(ctx, "could not delete video")
+  use _ <- result.try(result)
+
+  wisp.ok()
+  |> Ok
 }
 
 fn api_video_insert(ctx: Context, req) {
@@ -110,7 +155,7 @@ fn api_video_fetch(ctx: Context, id) {
       let timestamp = timestamp.now()
 
       let author = author.Author(name: author_name, url: author_url)
-      video.Video(id:, author:, title:, thumbnail:, timestamp:)
+      video.Video(id:, author:, title:, thumbnail:, timestamp:, tags: [])
       |> decode.success
     }
 

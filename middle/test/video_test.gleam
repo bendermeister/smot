@@ -14,6 +14,7 @@ pub fn to_from_json_test() {
       thumbnail: "https://thumbnail.img",
       id: Id("someid"),
       timestamp: timestamp.now(),
+      tags: ["hello", "world"],
     )
 
   let assert Ok(out) =
