@@ -47,6 +47,7 @@ const migrations = [
   migration_0001,
   migration_0002,
   migration_0003,
+  migration_0004,
 ]
 
 fn has_migration_table(ctx, conn: sqlight.Connection) {
@@ -105,6 +106,14 @@ fn migration_0002(ctx, conn) {
 fn migration_0003(ctx, conn) {
   "
   ALTER TABLE video ADD COLUMN timestamp INT NOT NULL;
+  "
+  |> sql.query()
+  |> sql.execute(ctx, conn)
+}
+
+fn migration_0004(ctx, conn) {
+  "
+  ALTER TABLE video ADD COLUMN tags TEXT;
   "
   |> sql.query()
   |> sql.execute(ctx, conn)

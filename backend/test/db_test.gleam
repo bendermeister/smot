@@ -59,6 +59,7 @@ pub fn fetch_all_001_test() {
       title: "This is a title",
       thumbnail: "anohter url",
       timestamp: timestamp.now(),
+      tags: ["tag"],
     )
 
   let assert Ok(_) = db.video_insert(ctx, video)
@@ -77,6 +78,7 @@ pub fn fetch_all_002_test() {
       title: "This is a title",
       thumbnail: "anohter url",
       timestamp: timestamp.now(),
+      tags: [],
     )
 
   let video1 =
@@ -86,6 +88,7 @@ pub fn fetch_all_002_test() {
       title: "This is a title other title",
       thumbnail: "anohter url1",
       timestamp: timestamp.now(),
+      tags: ["tag"],
     )
 
   let assert Ok(_) = db.video_insert(ctx, video0)
@@ -115,6 +118,7 @@ pub fn fetch_001_test() {
       title: "This is a title",
       thumbnail: "anohter url",
       timestamp: timestamp.now(),
+      tags: [],
     )
 
   let assert Ok(_) = db.video_insert(ctx, video)
@@ -132,6 +136,7 @@ pub fn fetch_002_test() {
       title: "This is a title",
       thumbnail: "anohter url",
       timestamp: timestamp.now(),
+      tags: ["hello", "world"],
     )
 
   let video1 =
@@ -141,10 +146,61 @@ pub fn fetch_002_test() {
       title: "This is a title other title",
       thumbnail: "anohter url1",
       timestamp: timestamp.now(),
+      tags: ["these", "are", "tags"],
     )
 
   let assert Ok(_) = db.video_insert(ctx, video0)
   let assert Ok(_) = db.video_insert(ctx, video1)
   let assert Ok(out) = db.video_fetch(ctx, Id("otherid"))
   assert out == video1
+}
+
+pub fn update_000_test() {
+  use ctx <- with_db
+
+  let video0 =
+    video.Video(
+      id: Id("someid"),
+      author: author.Author(name: "Gustav", url: "url"),
+      title: "This is a title",
+      thumbnail: "anohter url",
+      timestamp: timestamp.now(),
+      tags: ["hello", "world"],
+    )
+
+  let video1 =
+    video.Video(
+      id: Id("someid"),
+      author: author.Author(name: "Bernhadrd", url: "url0"),
+      title: "This is a title other title",
+      thumbnail: "anohter url1",
+      timestamp: timestamp.now(),
+      tags: ["these", "are", "tags"],
+    )
+
+  let assert Ok(_) = db.video_insert(ctx, video0)
+  let assert Ok(_) = db.video_update(ctx, video1)
+  let assert Ok(out) = db.video_fetch(ctx, Id("someid"))
+
+  assert out == video0
+}
+
+pub fn delete_000_test() {
+  use ctx <- with_db
+
+  let video =
+    video.Video(
+      id: Id("someid"),
+      author: author.Author(name: "Gustav", url: "url"),
+      title: "This is a title",
+      thumbnail: "anohter url",
+      timestamp: timestamp.now(),
+      tags: ["hello", "world"],
+    )
+
+  let assert Error(_) = db.video_fetch(ctx, Id("someid"))
+  let assert Ok(_) = db.video_insert(ctx, video)
+  let assert Ok(_) = db.video_fetch(ctx, Id("someid"))
+  let assert Ok(_) = db.video_delete(ctx, Id("someid"))
+  let assert Error(_) = db.video_fetch(ctx, Id("someid"))
 }

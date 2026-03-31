@@ -3,20 +3,33 @@ import backend/log
 import backend/migration
 import backend/sql
 import backend/types.{
-  type Context, type DatabaseMsg, type Logger, DatabaseStop, DatabaseVideoFetch,
-  DatabaseVideoFetchAll, DatabaseVideoInsert,
+  type Context, type DatabaseMsg, type Logger, DatabaseStop, DatabaseVideoDelete,
+  DatabaseVideoFetch, DatabaseVideoFetchAll, DatabaseVideoInsert,
+  DatabaseVideoUpdate,
 }
 import gleam/dynamic/decode
 import gleam/erlang/process
 import gleam/json
+import gleam/list
 import gleam/option.{type Option}
 import gleam/otp/actor
 import gleam/otp/supervision
 import gleam/result
+import gleam/string
 import middle/author
 import middle/id.{type Id}
 import middle/timestamp
 import middle/video.{type Video}
+
+fn video_tags_decoder() {
+  use tags <- decode.then(decode.optional(decode.string))
+
+  tags
+  |> option.unwrap("")
+  |> string.split(",")
+  |> list.filter(fn(x) { !string.is_empty(x) })
+  |> decode.success
+}
 
 pub opaque type Builder {
   Builder(name: Option(process.Name(DatabaseMsg)), path: String, logger: Logger)
@@ -75,23 +88,69 @@ pub fn on_message(ctx, db, msg: DatabaseMsg) {
         |> log.error_on_error(ctx, "db: failed to close database")
       actor.stop()
     }
+
     DatabaseVideoFetchAll(reply_to:) -> {
       let videos = video_fetch_all_internal(ctx, db)
       actor.send(reply_to, videos)
       actor.continue(db)
     }
+
     DatabaseVideoInsert(video:, reply_to:) -> {
       video_insert_internal(ctx, db, video)
       |> actor.send(reply_to, _)
 
       actor.continue(db)
     }
+
     DatabaseVideoFetch(reply_to:, id:) -> {
       video_fetch_internal(ctx, db, id)
       |> actor.send(reply_to, _)
       actor.continue(db)
     }
+
+    DatabaseVideoUpdate(reply_to:, video:) -> {
+      video_update_internal(ctx, db, video)
+      |> actor.send(reply_to, _)
+
+      actor.continue(db)
+    }
+
+    DatabaseVideoDelete(reply_to:, id:) -> {
+      video_delete_internal(ctx, db, id)
+      |> actor.send(reply_to, _)
+
+      actor.continue(db)
+    }
   }
+}
+
+fn video_delete_internal(ctx: Context, db, id: Id(Video)) -> Result(Nil, Nil) {
+  "DELETE FROM video WHERE id = ?;"
+  |> sql.query
+  |> sql.parameter(id |> id.to_string |> sql.text)
+  |> sql.execute(ctx, db)
+}
+
+fn video_update_internal(ctx: Context, db, video: Video) -> Result(Nil, Nil) {
+  "
+  UPDATE video SET
+    title = ?, 
+    author_name = ?, 
+    tags = ?,
+    author_url = ?, 
+    thumbnail_url = ?, 
+    timestamp = ?
+  WHERE id = ?;
+  "
+  |> sql.query()
+  |> sql.parameter(video.title |> sql.text)
+  |> sql.parameter(video.author.name |> sql.text)
+  |> sql.parameter(video.tags |> string.join(",") |> sql.text)
+  |> sql.parameter(video.author.url |> sql.text)
+  |> sql.parameter(video.thumbnail |> sql.text)
+  |> sql.parameter(video.timestamp |> timestamp.to_int |> sql.int)
+  |> sql.parameter(video.id |> id.to_string |> sql.text)
+  |> sql.execute(ctx, db)
 }
 
 pub fn supervised(builder) {
@@ -108,7 +167,8 @@ fn video_fetch_all_internal(ctx, db) {
     title, 
     thumbnail_url, 
     author_url, 
-    timestamp 
+    timestamp,
+    tags
   FROM video 
   ORDER BY timestamp ASC;
   "
@@ -120,9 +180,10 @@ fn video_fetch_all_internal(ctx, db) {
     use thumbnail <- decode.field(3, decode.string)
     use author_url <- decode.field(4, decode.string)
     use timestamp <- decode.field(5, timestamp.decoder())
+    use tags <- decode.field(6, video_tags_decoder())
 
     let author = author.Author(name: author_name, url: author_url)
-    video.Video(id:, author:, title:, thumbnail:, timestamp:)
+    video.Video(id:, author:, title:, thumbnail:, timestamp:, tags:)
     |> decode.success
   })
   |> sql.fetch(ctx, db)
@@ -137,9 +198,10 @@ fn video_insert_internal(ctx, db, video: Video) {
     author_url,
     title,
     thumbnail_url,
-    timestamp
+    timestamp,
+    tags
   ) VALUES (
-    ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?
   );
   "
   |> sql.query()
@@ -149,13 +211,14 @@ fn video_insert_internal(ctx, db, video: Video) {
   |> sql.parameter(video.title |> sql.text)
   |> sql.parameter(video.thumbnail |> sql.text)
   |> sql.parameter(video.timestamp |> timestamp.to_int |> sql.int)
+  |> sql.parameter(video.tags |> string.join(",") |> sql.text)
   |> sql.execute(ctx, db)
 }
 
 fn video_fetch_internal(ctx, db, id: Id(Video)) {
   log.info(ctx, "db: fetching video: " <> id.to_string(id))
   "
-  SELECT author_url, author_name, title, thumbnail_url, timestamp FROM video 
+  SELECT author_url, author_name, title, thumbnail_url, timestamp, tags FROM video 
   WHERE id = ? LIMIT 1;
   "
   |> sql.query()
@@ -166,9 +229,10 @@ fn video_fetch_internal(ctx, db, id: Id(Video)) {
     use title <- decode.field(2, decode.string)
     use thumbnail <- decode.field(3, decode.string)
     use timestamp <- decode.field(4, timestamp.decoder())
+    use tags <- decode.field(5, video_tags_decoder())
 
     let author = author.Author(name: author_name, url: author_url)
-    video.Video(id:, author:, title:, thumbnail:, timestamp:)
+    video.Video(id:, author:, title:, thumbnail:, timestamp:, tags:)
     |> decode.success()
   })
   |> sql.fetch_one(ctx, db)
@@ -178,10 +242,18 @@ pub fn video_insert(ctx: Context, video: Video) {
   actor.call(ctx.database, 20_000, DatabaseVideoInsert(reply_to: _, video:))
 }
 
+pub fn video_update(ctx: Context, video: Video) {
+  actor.call(ctx.database, 20_000, DatabaseVideoUpdate(reply_to: _, video:))
+}
+
 pub fn video_fetch_all(ctx: Context) {
   actor.call(ctx.database, 20_000, DatabaseVideoFetchAll(reply_to: _))
 }
 
 pub fn video_fetch(ctx: Context, id: Id(Video)) {
   actor.call(ctx.database, 20_000, DatabaseVideoFetch(reply_to: _, id:))
+}
+
+pub fn video_delete(ctx: Context, id: Id(Video)) {
+  actor.call(ctx.database, 20_000, DatabaseVideoDelete(reply_to: _, id:))
 }
