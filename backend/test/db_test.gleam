@@ -182,7 +182,7 @@ pub fn update_000_test() {
   let assert Ok(_) = db.video_update(ctx, video1)
   let assert Ok(out) = db.video_fetch(ctx, Id("someid"))
 
-  assert out == video0
+  assert out == video1
 }
 
 pub fn delete_000_test() {

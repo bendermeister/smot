@@ -17,6 +17,12 @@ import mist
 import wisp
 import wisp/wisp_mist
 
+type ApiError {
+  BadDatabase
+  BadRequest(String)
+  BadYoutube
+}
+
 pub fn supervised(ctx: Context, server_config: server_config.ServerConfig) {
   wisp_mist.handler(
     fn(req) { on_request(ctx, req) },
@@ -28,15 +34,8 @@ pub fn supervised(ctx: Context, server_config: server_config.ServerConfig) {
   |> mist.supervised()
 }
 
-fn serve_file(ctx: Context, name: String, content_type: String) {
-  wisp.ok()
-  |> wisp.set_body(wisp.File(ctx.static_content <> "/" <> name, 0, None))
-  |> wisp.set_header("content-type", content_type)
-  |> echo
-  |> Ok
-}
-
 pub fn on_request(ctx: Context, req: wisp.Request) {
+  use <- handle_api_error()
   case wisp.path_segments(req) {
     [] | ["index.html"] -> serve_file(ctx, "index.html", "text/html")
     ["frontend.js"] ->
@@ -49,8 +48,33 @@ pub fn on_request(ctx: Context, req: wisp.Request) {
     ["api", "video", "update"] -> api_video_update(ctx, req)
     _ -> wisp.not_found() |> Ok
   }
-  |> result.unwrap(wisp.internal_server_error())
 }
+
+// *****************************************************************************
+// Middleware     
+// *****************************************************************************
+
+fn handle_api_error(
+  handler: fn() -> Result(wisp.Response, ApiError),
+) -> wisp.Response {
+  case handler() {
+    Ok(response) -> response
+    Error(error) ->
+      case error {
+        BadDatabase ->
+          wisp.internal_server_error()
+          |> wisp.string_body("bad database")
+        BadRequest(reason) -> wisp.bad_request(reason)
+        BadYoutube ->
+          wisp.internal_server_error()
+          |> wisp.string_body("bad youtube")
+      }
+  }
+}
+
+// *****************************************************************************
+// Api Endpoints  
+// *****************************************************************************
 
 fn api_video_update(ctx, req) {
   log.info(ctx, "api video update")
@@ -59,6 +83,7 @@ fn api_video_update(ctx, req) {
     req
     |> wisp.read_body_bits()
     |> log.error_on_error(ctx, "could not read request body")
+    |> result.replace_error(BadRequest("Invalid JSON"))
   use body <- result.try(body)
 
   let video =
@@ -66,6 +91,7 @@ fn api_video_update(ctx, req) {
     |> json.parse_bits(video.json_decoder())
     |> log.error_on_error(ctx, "could not parse request body")
     |> result.replace_error(Nil)
+    |> result.replace_error(BadRequest("Invalid JSON"))
   use video <- result.try(video)
 
   echo video
@@ -73,6 +99,7 @@ fn api_video_update(ctx, req) {
   let result =
     db.video_update(ctx, video)
     |> log.error_on_error(ctx, "could not udpate video in database")
+    |> result.replace_error(BadDatabase)
   use _ <- result.try(result)
 
   log.info(ctx, "successfully updated video in database")
@@ -89,6 +116,9 @@ fn api_video_delete(ctx, id) {
   let result =
     db.video_delete(ctx, id)
     |> log.error_on_error(ctx, "could not delete video")
+    // error is probably bad request
+    // todo: how to distinguish between bad database and bad request?
+    |> result.replace_error(BadRequest("Invalid ID"))
   use _ <- result.try(result)
 
   wisp.ok()
@@ -100,6 +130,7 @@ fn api_video_insert(ctx: Context, req) {
   let body =
     wisp.read_body_bits(req)
     |> log.error_on_error(ctx, "could not read requst body")
+    |> result.replace_error(BadRequest("Invalid JSON"))
   use body <- result.try(body)
 
   let video =
@@ -107,11 +138,13 @@ fn api_video_insert(ctx: Context, req) {
     |> json.parse_bits(video.json_decoder())
     |> log.error_on_error(ctx, "could not parse request body")
     |> result.replace_error(Nil)
+    |> result.replace_error(BadRequest("Invalid JSON"))
   use video <- result.try(video)
 
   let result =
     db.video_insert(ctx, video)
     |> log.error_on_error(ctx, "could not insert video")
+    |> result.replace_error(BadDatabase)
   use _ <- result.try(result)
 
   wisp.ok()
@@ -123,53 +156,56 @@ fn api_video_fetch(ctx: Context, id) {
 
   let id = id |> id.from_string()
 
-  let video = {
-    let video = db.video_fetch(ctx, id)
-    use <- result.lazy_or(video)
+  let video =
+    {
+      let video = db.video_fetch(ctx, id)
+      use <- result.lazy_or(video)
 
-    log.info(ctx, "video is not in database fetching data")
+      log.info(ctx, "video is not in database fetching data")
 
-    let video_url = id |> video.id_to_uri |> uri.to_string()
+      let video_url = id |> video.id_to_uri |> uri.to_string()
 
-    // this should never fail as we pass static string url
-    let assert Ok(request) = request.to("https://www.youtube.com/oembed/")
+      // this should never fail as we pass static string url
+      let assert Ok(request) = request.to("https://www.youtube.com/oembed/")
 
-    // TODO: maybe format the hackey error correctly and log it
-    let response =
-      request
-      |> request.set_query([#("url", video_url)])
-      |> hackney.send()
-      |> log.info_on_ok(ctx, "got response from youtube oembed")
-      |> log.error_on_error(
-        ctx,
-        "could not fetch video data from youtube oembed",
-      )
-      |> result.replace_error(Nil)
-    use response <- result.try(response)
+      // TODO: maybe format the hackey error correctly and log it
+      let response =
+        request
+        |> request.set_query([#("url", video_url)])
+        |> hackney.send()
+        |> log.info_on_ok(ctx, "got response from youtube oembed")
+        |> log.error_on_error(
+          ctx,
+          "could not fetch video data from youtube oembed",
+        )
+        |> result.replace_error(Nil)
+      use response <- result.try(response)
 
-    let decoder = {
-      use title <- decode.field("title", decode.string)
-      use author_name <- decode.field("author_name", decode.string)
-      use author_url <- decode.field("author_url", decode.string)
-      use thumbnail <- decode.field("thumbnail_url", decode.string)
-      let timestamp = timestamp.now()
+      let decoder = {
+        use title <- decode.field("title", decode.string)
+        use author_name <- decode.field("author_name", decode.string)
+        use author_url <- decode.field("author_url", decode.string)
+        use thumbnail <- decode.field("thumbnail_url", decode.string)
+        let timestamp = timestamp.now()
 
-      let author = author.Author(name: author_name, url: author_url)
-      video.Video(id:, author:, title:, thumbnail:, timestamp:, tags: [])
-      |> decode.success
+        let author = author.Author(name: author_name, url: author_url)
+        video.Video(id:, author:, title:, thumbnail:, timestamp:, tags: [])
+        |> decode.success
+      }
+
+      let video =
+        response.body
+        |> json.parse(decoder)
+        |> log.error_on_error(ctx, "could not parse response body")
+        |> result.replace_error(Nil)
+      use video <- result.try(video)
+
+      log.info(ctx, "got valid video from youtube")
+
+      video |> Ok
     }
-
-    let video =
-      response.body
-      |> json.parse(decoder)
-      |> log.error_on_error(ctx, "could not parse response body")
-      |> result.replace_error(Nil)
-    use video <- result.try(video)
-
-    log.info(ctx, "got valid video from youtube")
-
-    video |> Ok
-  }
+    // TODO: how to distiguish between bad youtube and bad request?
+    |> result.replace_error(BadYoutube)
   use video <- result.try(video)
 
   video
@@ -181,12 +217,26 @@ fn api_video_fetch(ctx: Context, id) {
 
 fn api_video_fetch_all(ctx) {
   log.info(ctx, "api: video fetch all")
-  let videos = db.video_fetch_all(ctx)
+  let videos =
+    db.video_fetch_all(ctx)
+    |> result.replace_error(BadDatabase)
   use videos <- result.try(videos)
 
   videos
   |> json.array(video.to_json)
   |> json.to_string()
   |> wisp.json_response(200)
+  |> Ok
+}
+
+// *****************************************************************************
+// Helper Functions
+// *****************************************************************************
+
+fn serve_file(ctx: Context, name: String, content_type: String) {
+  wisp.ok()
+  |> wisp.set_body(wisp.File(ctx.static_content <> "/" <> name, 0, None))
+  |> wisp.set_header("content-type", content_type)
+  |> echo
   |> Ok
 }
