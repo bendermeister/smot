@@ -34,6 +34,8 @@ pub fn supervised(ctx: Context, server_config: server_config.ServerConfig) {
   |> mist.supervised()
 }
 
+// TODO: merge insert + update into a single upsert function to avoid confusion
+
 pub fn on_request(ctx: Context, req: wisp.Request) {
   use <- handle_api_error()
   case wisp.path_segments(req) {
@@ -93,8 +95,6 @@ fn api_video_update(ctx, req) {
     |> result.replace_error(Nil)
     |> result.replace_error(BadRequest("Invalid JSON"))
   use video <- result.try(video)
-
-  echo video
 
   let result =
     db.video_update(ctx, video)
@@ -237,6 +237,5 @@ fn serve_file(ctx: Context, name: String, content_type: String) {
   wisp.ok()
   |> wisp.set_body(wisp.File(ctx.static_content <> "/" <> name, 0, None))
   |> wisp.set_header("content-type", content_type)
-  |> echo
   |> Ok
 }
