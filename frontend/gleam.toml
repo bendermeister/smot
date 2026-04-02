@@ -29,6 +29,7 @@ lustre_dev_tools = ">= 2.3.5 and < 3.0.0"
 
 [tools.lustre.bin]
 timeout = 300
+tailwindcss = "system"
 
 [tools.lustre.build]
 minify = true

@@ -5,19 +5,21 @@ RUN mkdir /build
 RUN apk update
 RUN apk upgrade
 RUN apk add build-base
+RUN apk add git
 
-COPY . /build
-# RUN cd /build/frontend && gleam clean
-RUN cd /build/backend && gleam clean
+RUN git clone https://github.com/bendermeister/smot
 
-# RUN cd /build/frontend && gleam run -m lustre/dev build
-RUN cd /build/backend && gleam export erlang-shipment
+# RUN cd /smot/frontend && gleam clean
+RUN cd /smot/backend && gleam clean
+
+# RUN cd /smot/frontend && gleam run -m lustre/dev build
+RUN cd /smot/backend && gleam export erlang-shipment
 
 FROM erlang:28.3-alpine
 RUN \
   addgroup --system webapp && \
   adduser --system webapp -g webapp
-COPY --from=build /build/backend/build/erlang-shipment /app
+COPY --from=build /smot/backend/build/erlang-shipment /app
 WORKDIR /app
 ENTRYPOINT ["/app/entrypoint.sh"]
 EXPOSE 8080
