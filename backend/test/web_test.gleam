@@ -63,7 +63,7 @@ pub fn video_update_003_test() {
   use ctx <- with_db
   let id = Id("someid")
 
-  let assert Ok(_) = db.video_insert(ctx, video)
+  let assert Ok(_) = db.video_upsert(ctx, video)
 
   let out =
     simulate.browser_request(http.Post, "/api/video/update")
@@ -95,7 +95,7 @@ pub fn video_delete_000_test() {
 pub fn video_delete_001_test() {
   use ctx <- with_db
 
-  let assert Ok(_) = db.video_insert(ctx, video)
+  let assert Ok(_) = db.video_upsert(ctx, video)
 
   let out =
     { "/api/video/delete/" <> id.to_string(id) }
@@ -145,7 +145,7 @@ pub fn video_fetch_all_000_test() {
 pub fn video_fetch_all_001_test() {
   use ctx <- with_db
 
-  let assert Ok(_) = db.video_insert(ctx, video)
+  let assert Ok(_) = db.video_upsert(ctx, video)
 
   let out =
     simulate.browser_request(http.Get, "/api/video/fetch-all")

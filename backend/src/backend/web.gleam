@@ -97,7 +97,7 @@ fn api_video_update(ctx, req) {
   use video <- result.try(video)
 
   let result =
-    db.video_update(ctx, video)
+    db.video_upsert(ctx, video)
     |> log.error_on_error(ctx, "could not udpate video in database")
     |> result.replace_error(BadDatabase)
   use _ <- result.try(result)
@@ -142,7 +142,7 @@ fn api_video_insert(ctx: Context, req) {
   use video <- result.try(video)
 
   let result =
-    db.video_insert(ctx, video)
+    db.video_upsert(ctx, video)
     |> log.error_on_error(ctx, "could not insert video")
     |> result.replace_error(BadDatabase)
   use _ <- result.try(result)
