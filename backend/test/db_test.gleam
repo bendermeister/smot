@@ -27,7 +27,7 @@ pub fn fetch_all_001_test() {
       tags: ["tag"],
     )
 
-  let assert Ok(_) = db.video_insert(ctx, video)
+  let assert Ok(_) = db.video_upsert(ctx, video)
 
   let assert Ok(out) = db.video_fetch_all(ctx)
   assert out == [video]
@@ -56,8 +56,8 @@ pub fn fetch_all_002_test() {
       tags: ["tag"],
     )
 
-  let assert Ok(_) = db.video_insert(ctx, video0)
-  let assert Ok(_) = db.video_insert(ctx, video1)
+  let assert Ok(_) = db.video_upsert(ctx, video0)
+  let assert Ok(_) = db.video_upsert(ctx, video1)
 
   let assert Ok(out) = db.video_fetch_all(ctx)
 
@@ -86,14 +86,13 @@ pub fn fetch_001_test() {
       tags: [],
     )
 
-  let assert Ok(_) = db.video_insert(ctx, video)
+  let assert Ok(_) = db.video_upsert(ctx, video)
   let assert Ok(out) = db.video_fetch(ctx, Id("someid"))
   assert out == video
 }
 
 pub fn fetch_002_test() {
-  use ctx <- with_db()
-
+  use ctx <- with_db
   let video0 =
     video.Video(
       id: Id("someid"),
@@ -114,8 +113,8 @@ pub fn fetch_002_test() {
       tags: ["these", "are", "tags"],
     )
 
-  let assert Ok(_) = db.video_insert(ctx, video0)
-  let assert Ok(_) = db.video_insert(ctx, video1)
+  let assert Ok(_) = db.video_upsert(ctx, video0)
+  let assert Ok(_) = db.video_upsert(ctx, video1)
   let assert Ok(out) = db.video_fetch(ctx, Id("otherid"))
   assert out == video1
 }
@@ -143,8 +142,8 @@ pub fn update_000_test() {
       tags: ["these", "are", "tags"],
     )
 
-  let assert Ok(_) = db.video_insert(ctx, video0)
-  let assert Ok(_) = db.video_update(ctx, video1)
+  let assert Ok(_) = db.video_upsert(ctx, video0)
+  let assert Ok(_) = db.video_upsert(ctx, video1)
   let assert Ok(out) = db.video_fetch(ctx, Id("someid"))
 
   assert out == video1
@@ -164,8 +163,36 @@ pub fn delete_000_test() {
     )
 
   let assert Error(_) = db.video_fetch(ctx, Id("someid"))
-  let assert Ok(_) = db.video_insert(ctx, video)
+  let assert Ok(_) = db.video_upsert(ctx, video)
   let assert Ok(_) = db.video_fetch(ctx, Id("someid"))
   let assert Ok(_) = db.video_delete(ctx, Id("someid"))
   let assert Error(_) = db.video_fetch(ctx, Id("someid"))
+}
+
+pub fn upsert_000_test() {
+  use ctx <- util.with_db
+
+  let video =
+    video.Video(
+      id: Id("someid"),
+      author: author.Author(name: "Gustav", url: "url"),
+      title: "This is a title",
+      thumbnail: "anohter url",
+      timestamp: timestamp.now(),
+      tags: ["hello", "world"],
+    )
+
+  let assert Ok(_) = db.video_upsert(ctx, video)
+  let assert Ok(out) = db.video_fetch(ctx, video.id)
+  assert video == out
+
+  let assert Ok(_) = db.video_upsert(ctx, video)
+  let assert Ok(out) = db.video_fetch(ctx, video.id)
+  assert video == out
+
+  let video = video.Video(..video, title: "this is some other title")
+
+  let assert Ok(_) = db.video_upsert(ctx, video)
+  let assert Ok(out) = db.video_fetch(ctx, video.id)
+  assert video == out
 }

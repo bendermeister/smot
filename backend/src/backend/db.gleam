@@ -4,8 +4,7 @@ import backend/migration
 import backend/sql
 import backend/types.{
   type Context, type DatabaseMsg, type Logger, DatabaseStop, DatabaseVideoDelete,
-  DatabaseVideoFetch, DatabaseVideoFetchAll, DatabaseVideoInsert,
-  DatabaseVideoUpdate,
+  DatabaseVideoFetch, DatabaseVideoFetchAll, DatabaseVideoUpsert,
 }
 import gleam/dynamic/decode
 import gleam/erlang/process
@@ -95,28 +94,21 @@ pub fn on_message(ctx, db, msg: DatabaseMsg) {
       actor.continue(db)
     }
 
-    DatabaseVideoInsert(video:, reply_to:) -> {
-      video_insert_internal(ctx, db, video)
-      |> actor.send(reply_to, _)
-
-      actor.continue(db)
-    }
-
     DatabaseVideoFetch(reply_to:, id:) -> {
       video_fetch_internal(ctx, db, id)
       |> actor.send(reply_to, _)
       actor.continue(db)
     }
 
-    DatabaseVideoUpdate(reply_to:, video:) -> {
-      video_update_internal(ctx, db, video)
+    DatabaseVideoDelete(reply_to:, id:) -> {
+      video_delete_internal(ctx, db, id)
       |> actor.send(reply_to, _)
 
       actor.continue(db)
     }
 
-    DatabaseVideoDelete(reply_to:, id:) -> {
-      video_delete_internal(ctx, db, id)
+    DatabaseVideoUpsert(reply_to:, video:) -> {
+      video_upsert_internal(ctx, db, video)
       |> actor.send(reply_to, _)
 
       actor.continue(db)
@@ -128,28 +120,6 @@ fn video_delete_internal(ctx: Context, db, id: Id(Video)) -> Result(Nil, Nil) {
   "DELETE FROM video WHERE id = ?;"
   |> sql.query
   |> sql.parameter(id |> id.to_string |> sql.text)
-  |> sql.execute(ctx, db)
-}
-
-fn video_update_internal(ctx: Context, db, video: Video) -> Result(Nil, Nil) {
-  "
-  UPDATE video SET
-    title = ?, 
-    author_name = ?, 
-    tags = ?,
-    author_url = ?, 
-    thumbnail_url = ?, 
-    timestamp = ?
-  WHERE id = ?;
-  "
-  |> sql.query()
-  |> sql.parameter(video.title |> sql.text)
-  |> sql.parameter(video.author.name |> sql.text)
-  |> sql.parameter(video.tags |> string.join(",") |> sql.text)
-  |> sql.parameter(video.author.url |> sql.text)
-  |> sql.parameter(video.thumbnail |> sql.text)
-  |> sql.parameter(video.timestamp |> timestamp.to_int |> sql.int)
-  |> sql.parameter(video.id |> id.to_string |> sql.text)
   |> sql.execute(ctx, db)
 }
 
@@ -189,10 +159,10 @@ fn video_fetch_all_internal(ctx, db) {
   |> sql.fetch(ctx, db)
 }
 
-fn video_insert_internal(ctx, db, video: Video) {
+fn video_upsert_internal(ctx, db, video: Video) {
   log.info(ctx, "db: inserting video " <> json.to_string(video.to_json(video)))
   "
-  INSERT INTO video (
+  INSERT OR REPLACE INTO video (
     id,
     author_name,
     author_url,
@@ -238,12 +208,8 @@ fn video_fetch_internal(ctx, db, id: Id(Video)) {
   |> sql.fetch_one(ctx, db)
 }
 
-pub fn video_insert(ctx: Context, video: Video) {
-  actor.call(ctx.database, 20_000, DatabaseVideoInsert(reply_to: _, video:))
-}
-
-pub fn video_update(ctx: Context, video: Video) {
-  actor.call(ctx.database, 20_000, DatabaseVideoUpdate(reply_to: _, video:))
+pub fn video_upsert(ctx: Context, video: Video) {
+  actor.call(ctx.database, 20_000, DatabaseVideoUpsert(reply_to: _, video:))
 }
 
 pub fn video_fetch_all(ctx: Context) {
