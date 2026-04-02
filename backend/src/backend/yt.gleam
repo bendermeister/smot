@@ -7,23 +7,26 @@ import gleam/hackney
 import gleam/http
 import gleam/http/request
 import gleam/json
+import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
+import gleam/otp/supervision
 import gleam/result
 import gleam/uri
 import middle/author
+import middle/id.{type Id}
 import middle/timestamp
-import middle/video
+import middle/video.{type Video}
 
 pub type Builder {
-  Builder(logger: Logger)
+  Builder(logger: Logger, name: Option(process.Name(YoutubeMsg)))
 }
 
 pub fn new() {
-  Builder(logger: log.default_logger)
+  Builder(logger: log.default_logger, name: None)
 }
 
-pub fn set_logger(_: Builder, logger: Logger) {
-  Builder(logger:)
+pub fn set_logger(builder: Builder, logger: Logger) {
+  Builder(..builder, logger:)
 }
 
 type State {
@@ -34,11 +37,28 @@ fn build(builder: Builder) {
   State(logger: builder.logger)
 }
 
+pub fn named(builder: Builder, name) {
+  Builder(..builder, name: Some(name))
+}
+
+pub fn supervised(builder: Builder) {
+  fn() { start(builder) }
+  |> supervision.worker()
+}
+
 pub fn start(builder: Builder) {
-  builder
-  |> build()
-  |> actor.new()
-  |> actor.on_message(on_message)
+  let state = build(builder)
+
+  let actor =
+    actor.new(state)
+    |> actor.on_message(on_message)
+
+  let actor = case builder.name {
+    Some(name) -> actor |> actor.named(name)
+    None -> actor
+  }
+
+  actor
   |> actor.start()
 }
 
@@ -60,10 +80,12 @@ fn fetch_data(ctx, id) {
     id
     |> video.id_to_uri()
     |> uri.to_string()
-    |> uri.percent_encode()
 
+  let assert Ok(request) = request.to("https://youtube.com")
+
+  // TODO: log youtube response better on error ... this is quite painful to debug
   let response =
-    request.Request(..request.new(), host: "youtube.com")
+    request
     |> request.set_method(http.Get)
     |> request.set_path("/oembed")
     |> request.set_query([#("url", video_url)])
@@ -86,4 +108,8 @@ fn fetch_data(ctx, id) {
   })
   |> log.info_on_error(ctx, "failed to parse response body from youtube oembed")
   |> result.replace_error(Nil)
+}
+
+pub fn video_fetch(subject, id: Id(Video)) {
+  actor.call(subject, 20_000, YoutubeFetchVideo(reply_to: _, id:))
 }
