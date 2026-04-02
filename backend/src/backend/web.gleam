@@ -2,16 +2,13 @@ import backend/db
 import backend/log
 import backend/server_config
 import backend/types.{type Context}
-import gleam/dynamic/decode
-import gleam/hackney
-import gleam/http/request
+import backend/yt
+import gleam/erlang/process
 import gleam/json
 import gleam/option.{None}
+import gleam/otp/static_supervisor
 import gleam/result
-import gleam/uri
-import middle/author
 import middle/id
-import middle/timestamp
 import middle/video
 import mist
 import wisp
@@ -24,19 +21,35 @@ type ApiError {
 }
 
 pub fn supervised(ctx: Context, server_config: server_config.ServerConfig) {
-  wisp_mist.handler(
-    fn(req) { on_request(ctx, req) },
-    server_config.cookie_secret,
-  )
-  |> mist.new()
-  |> mist.port(server_config.port)
-  |> mist.bind(server_config.host)
-  |> mist.supervised()
+  let yt_name = process.new_name("youtube-actor")
+
+  let yt_actor =
+    yt.new()
+    |> yt.set_logger(ctx.logger)
+    |> yt.named(yt_name)
+    |> yt.supervised()
+
+  let yt = process.named_subject(yt_name)
+
+  let mist_actor =
+    wisp_mist.handler(
+      fn(req) { on_request(ctx, req, yt) },
+      server_config.cookie_secret,
+    )
+    |> mist.new()
+    |> mist.port(server_config.port)
+    |> mist.bind(server_config.host)
+    |> mist.supervised()
+
+  static_supervisor.new(static_supervisor.OneForOne)
+  |> static_supervisor.add(mist_actor)
+  |> static_supervisor.add(yt_actor)
+  |> static_supervisor.supervised()
 }
 
 // TODO: merge insert + update into a single upsert function to avoid confusion
 
-pub fn on_request(ctx: Context, req: wisp.Request) {
+pub fn on_request(ctx: Context, req: wisp.Request, yt) {
   use <- handle_api_error()
   case wisp.path_segments(req) {
     [] | ["index.html"] -> serve_file(ctx, "index.html", "text/html")
@@ -44,7 +57,7 @@ pub fn on_request(ctx: Context, req: wisp.Request) {
       serve_file(ctx, "frontend.js", "text/javascript; charset=utf-8")
     ["frontend.css"] -> serve_file(ctx, "frontend.css", "text/css")
     ["api", "video", "fetch-all"] -> api_video_fetch_all(ctx)
-    ["api", "video", "fetch", url] -> api_video_fetch(ctx, url)
+    ["api", "video", "fetch", url] -> api_video_fetch(ctx, url, yt)
     ["api", "video", "insert"] -> api_video_insert(ctx, req)
     ["api", "video", "delete", id] -> api_video_delete(ctx, id)
     ["api", "video", "update"] -> api_video_update(ctx, req)
@@ -151,7 +164,7 @@ fn api_video_insert(ctx: Context, req) {
   |> Ok
 }
 
-fn api_video_fetch(ctx: Context, id) {
+fn api_video_fetch(ctx: Context, id, yt) {
   log.info(ctx, "api: video fetch")
 
   let id = id |> id.from_string()
@@ -161,48 +174,9 @@ fn api_video_fetch(ctx: Context, id) {
       let video = db.video_fetch(ctx, id)
       use <- result.lazy_or(video)
 
-      log.info(ctx, "video is not in database fetching data")
-
-      let video_url = id |> video.id_to_uri |> uri.to_string()
-
-      // this should never fail as we pass static string url
-      let assert Ok(request) = request.to("https://www.youtube.com/oembed/")
-
-      // TODO: maybe format the hackey error correctly and log it
-      let response =
-        request
-        |> request.set_query([#("url", video_url)])
-        |> hackney.send()
-        |> log.info_on_ok(ctx, "got response from youtube oembed")
-        |> log.error_on_error(
-          ctx,
-          "could not fetch video data from youtube oembed",
-        )
-        |> result.replace_error(Nil)
-      use response <- result.try(response)
-
-      let decoder = {
-        use title <- decode.field("title", decode.string)
-        use author_name <- decode.field("author_name", decode.string)
-        use author_url <- decode.field("author_url", decode.string)
-        use thumbnail <- decode.field("thumbnail_url", decode.string)
-        let timestamp = timestamp.now()
-
-        let author = author.Author(name: author_name, url: author_url)
-        video.Video(id:, author:, title:, thumbnail:, timestamp:, tags: [])
-        |> decode.success
-      }
-
-      let video =
-        response.body
-        |> json.parse(decoder)
-        |> log.error_on_error(ctx, "could not parse response body")
-        |> result.replace_error(Nil)
-      use video <- result.try(video)
-
-      log.info(ctx, "got valid video from youtube")
-
-      video |> Ok
+      log.info(ctx, "video is not in database - fetching from youtube")
+      yt.video_fetch(yt, id)
+      |> log.error_on_error(ctx, "could not fetch data from youtube")
     }
     // TODO: how to distiguish between bad youtube and bad request?
     |> result.replace_error(BadYoutube)
