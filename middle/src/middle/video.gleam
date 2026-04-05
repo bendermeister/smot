@@ -21,12 +21,12 @@ pub type Video {
 
 pub fn id_to_uri(id: Id(Video)) {
   uri.Uri(
-    scheme: None,
+    scheme: Some("https"),
     userinfo: None,
-    host: Some("youtu.be"),
+    host: Some("youtube.com"),
     port: None,
-    path: id |> id.to_string(),
-    query: None,
+    path: "/watch",
+    query: Some("v=" <> id.to_string(id)),
     fragment: None,
   )
 }
