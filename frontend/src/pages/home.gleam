@@ -244,19 +244,19 @@ fn view_video(video: Video) {
 
   div(
     [
-      class("w-[384px] h-fit"),
+      class("sm:w-[384px] w-[288px] h-fit"),
       class("flex flex-col gap-2"),
       class("transition-all hover:transform-[scale(0.975)]"),
     ],
     [
       a([href(url)], [
         img([
-          class("w-[384px] h-[216px] object-cover"),
+          class("sm:w-[384px] sm:h-[216px] w-[288px] h-[162px] object-cover"),
           src(video.thumbnail),
         ]),
       ]),
       div([class("flex flex-row justify-between")], [
-        div([class("w-[360px] flex flex-col")], [
+        div([class("sm:w-[360px] w-[264px] flex flex-col")], [
           div([class("line-clamp-1 text-ellipsis")], [text(video.title)]),
           div([class("line-clamp-1 text-ellipsis text-xs text-gray-500")], [
             text(video.author.name),
@@ -307,7 +307,8 @@ fn view_video_grid(videos: List(Video)) {
 
   div(
     [
-      class("grid-cols-[repeat(auto-fit,384px)] grid gap-2 "),
+      class("sm:grid-cols-[repeat(auto-fit,384px)] grid gap-2 "),
+      class("grid-cols-[repeat(auto-fit,288px)]"),
       class("justify-center items-start"),
       class("flex-grow overflow-y-scroll no-scrollbar"),
     ],
@@ -317,7 +318,7 @@ fn view_video_grid(videos: List(Video)) {
 
 pub fn view_edit(state: EditState) {
   let fieldset = fn(title, content, update) {
-    div([class("flex flex-col gap-0")], [
+    div([class("w-full flex flex-col gap-0")], [
       label([class("text-gray-500 text-sm")], [text(title)]),
       textarea([on_input(update), class("p-2 border outline-none")], content),
     ])
@@ -325,11 +326,11 @@ pub fn view_edit(state: EditState) {
 
   div(
     [
-      class("w-fit h-full overflow-y-scroll p-2 border"),
-      class("h-full flex flex-col gap-2 no-scrollbar"),
+      class("sm:w-fit w-full h-full overflow-y-scroll p-2 border"),
+      class("items-center h-full flex flex-col gap-2 no-scrollbar"),
     ],
     [
-      div([class("w-[384px] h-[216px]")], [
+      div([class("sm:w-[384px] sm:h-[216px] w-[288px] h-[162px]")], [
         img([
           class("w-full h-full object-cover"),
           src(state.video.thumbnail),
