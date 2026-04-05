@@ -11,7 +11,7 @@ import gleam/string
 import gleam/uri
 import icon
 import layout/base.{layout}
-import lustre/attribute.{class, href, placeholder, src}
+import lustre/attribute.{class, href, placeholder, src, value}
 import lustre/effect
 import lustre/element/html.{a, button, div, img, input, label, text, textarea}
 import lustre/event.{on_click, on_input}
@@ -45,7 +45,7 @@ pub type Msg {
 }
 
 fn video_query(videos: List(Video), query: String) {
-  let #(tags, softs) =
+  let #(tags, query) =
     query
     |> string.replace(",", " ")
     |> string.replace(".", " ")
@@ -60,34 +60,42 @@ fn video_query(videos: List(Video), query: String) {
         _ -> False
       }
     })
-
   let tags = set.from_list(tags)
 
   videos
   |> list.map(fn(video) {
-    let tags_matching =
+    let tag_count =
       video.tags
-      |> list.map(string.lowercase)
       |> set.from_list()
       |> set.intersection(tags)
       |> set.size()
 
-    let video_title = video.title |> string.lowercase()
+    let author_count =
+      query
+      |> list.count(fn(query) {
+        video.author.name
+        |> string.lowercase()
+        |> string.contains(query)
+      })
 
-    let title_matching =
-      softs
-      |> list.filter(string.contains(video_title, _))
-      |> list.length()
+    let title_count =
+      query
+      |> list.count(fn(query) {
+        video.title
+        |> string.lowercase()
+        |> string.contains(query)
+      })
 
-    #(tags_matching, title_matching, video)
+    #(tag_count, author_count, title_count, video)
   })
   |> list.sort(fn(a, b) {
     int.compare(a.0, b.0)
     |> order.break_tie(int.compare(a.1, b.1))
-    |> order.break_tie(timestamp.compare(a.2.timestamp, b.2.timestamp))
+    |> order.break_tie(int.compare(a.2, b.2))
+    |> order.break_tie(timestamp.compare(a.3.timestamp, b.3.timestamp))
     |> order.negate()
   })
-  |> list.map(fn(x) { x.2 })
+  |> list.map(fn(x) { x.3 })
 }
 
 pub fn init() {
@@ -139,6 +147,7 @@ pub fn update(model: Model, msg: Msg) {
         |> list.unique()
 
       #(Model(..model, videos:, query: ""), effect)
+      |> echo
     }
 
     NoOp -> #(model, effect.none())
@@ -276,6 +285,7 @@ fn view_controls(query: String) {
         class("outline-none p-2 flex-grow border"),
         placeholder("search..."),
         on_input(UserInputQuery),
+        value(query),
       ]),
       button(
         [
